@@ -1,2 +1,4 @@
 # WBAhackathon2017
-第3回全脳アーキテクチャ・ハッカソン 海馬モデルを作る
+Make a hippocampus model.
+## License
+Apache License (Version 2.0)
