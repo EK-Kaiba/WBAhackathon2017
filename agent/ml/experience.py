@@ -3,6 +3,7 @@
 import random
 import numpy as np
 from chainer import cuda
+import utils
 
 class Experience:
     def __init__(self, use_gpu=0, data_size=10**5, replay_size=32, hist_size=1, initial_exploration=10**3, dim=10240):
@@ -49,8 +50,16 @@ class Experience:
         indices = [i for i in range(len(tmp_episode_end_flags)) if tmp_episode_end_flags[i]]
         print('indices = %s' % indices)
 
+        tmp_rewards = self.d[2].T[0].copy()
+#        rewards = []
+#        for i in range(len(indices) - 2):
+#            rewards.append(reduce(lambda x, y: x + y, tmp_rewards[indices[i] + 1:indices[i + 1] + 1]))
+        each_sum_rewards = [reduce(lambda x, y: x + y, tmp_rewards[indices[i] + 1:indices[i + 1] + 1]) for i in range(len(indices) - 2)]
+        each_sum_rewards = utils.softmax(each_sum_rewards)
+
         while True:
-            selected_end_index_of_indices = random.randint(1, len(indices) - 1)
+            #selected_end_index_of_indices = random.randint(1, len(indices) - 1)
+            selected_end_index_of_indices = np.random.choice(len(indices) - 2, p=each_sum_rewards) + 1
             print('selected_end_index_of_indices = %s' % selected_end_index_of_indices)
             if (indices[selected_end_index_of_indices] - self.replay_size + 1) - (indices[selected_end_index_of_indices - 1] + 1) >= 0:
                 print('broken')
