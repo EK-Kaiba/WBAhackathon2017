@@ -4,8 +4,6 @@ import random
 import numpy as np
 from chainer import cuda
 
-ultimate_b = []
-
 class Experience:
     def __init__(self, use_gpu=0, data_size=10**5, replay_size=32, hist_size=1, initial_exploration=10**3, dim=10240):
 
@@ -22,9 +20,6 @@ class Experience:
                   np.zeros((self.data_size, 1), dtype=np.int8),
                   np.zeros((self.data_size, self.hist_size, self.dim), dtype=np.uint8),
                   np.zeros((self.data_size, 1), dtype=np.bool)]
-#        self.backup_of_d4 = self.d[4].T[0].copy()
-
-        print('Experience.__init__ !!')
 
     def stock(self, time, state, action, reward, state_dash, episode_end_flag):
         data_index = time % self.data_size
@@ -38,28 +33,11 @@ class Experience:
             self.d[1][data_index] = action
             self.d[2][data_index] = reward
             self.d[3][data_index] = state_dash
-#        if self.d[4][data_index]:
-#            print('It has been already True!!!')
-#        else:
-#            self.d[4][data_index] = episode_end_flag
-#            self.backup_of_d4[data_index] = episode_end_flag
-#        global ultimate_b
-#        ultimate_b.append(episode_end_flag)
         if self.d[4][data_index]:
             print('##################################')
             print('True!!! data_index = %s' % data_index)
             for d in self.d[4][:data_index + 1]:
                 print('%s' % d),
-            '''print('')
-            for b in self.backup_of_d4[:data_index + 1]:
-                print('%s' % b),
-            print('')
-            for u in ultimate_b:
-                print('%s' % u),
-            print('\n')
-            for a in self.d[1][:data_index + 1]:
-                print('%s' % a),
-            '''
             print('\n##################################')
         else:
             self.d[4][data_index] = episode_end_flag
@@ -85,30 +63,6 @@ class Experience:
         print(a)
         return a
 
-        '''
-        print('length = %s' % length)
-        flags = [self.d[4].copy()]
-        print('flags = %s' % flags)
-        left = 0
-        while True:
-            print('left = %s' % left)
-            right = flags[-1].argmax()
-            print('right = %s, left = %s' % (right, left,))
-            if right == 0 or right == length - 1:
-                break
-            flags[-1] = self.d[4][left:right + 1].copy()
-            flags.append(self.d[4][right + 1:].copy())
-            left = right + 1
-        import bpdb; bpdb.set_trace()
-
-        import random
-        selected_flag_index = random.randint(0, len(flags) - 1)
-        print('selected_flag_index = %s' % selected_flag_index)
-        extract_start_index = random.randint(0, len(flags[selected_flag_index]) - self.replay_size) + reduce(lambda x,y: x + y, [len(flag) for flag in flags[:selected_flag_index]])
-        a = np.array([range(extract_start_index, extract_start_index + self.replay_size)]).T
-        print(a)
-        return a
-        '''
 
     def replay(self, time):
         replay_start = False
@@ -116,11 +70,8 @@ class Experience:
             replay_start = True
             # Pick up replay_size number of samples from the Data
             if time < self.data_size:  # during the first sweep of the History Data
-#                replay_index = np.random.randint(0, time, (self.replay_size, 1))
-#                print(replay_index)
-                print('hoge')
+                #replay_index = np.random.randint(0, time, (self.replay_size, 1))
                 replay_index = self.retrieve_sequence_replay_index(time)
-                print('piyo')
             else:
                 #replay_index = np.random.randint(0, self.data_size, (self.replay_size, 1))
                 replay_index = self.retrieve_sequence_replay_index(self.data_size)
