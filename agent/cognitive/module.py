@@ -109,6 +109,7 @@ class UBComponent(brica1.Component):
         self.last_state = vvc_input
         self.state = vvc_input
         self.time = 0
+        print('UBComponent.__init__ !!')
 
     def end(self, action, reward):
         self.time += 1
@@ -118,6 +119,7 @@ class UBComponent(brica1.Component):
 
     def fire(self):
         self.state = self.get_in_port('Isocortex#VVC-UB-Input').buffer
+        #import bpdb; bpdb.set_trace()
         action, reward = self.get_in_port('Isocortex#FL-UB-Input').buffer
         self.experience.stock(self.time, self.last_state, action, reward, self.state, False)
         replay_start, s_replay, a_replay, r_replay, s_dash_replay, episode_end_replay = \

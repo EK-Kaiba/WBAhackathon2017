@@ -87,6 +87,7 @@ class QNet:
         if self.use_gpu >= 0:
             target = cuda.to_gpu(target)
         td = Variable(target) - q  # TD error
+        app_logger.info('TD error: {}'.format(td.data))
         td_tmp = td.data + 1000.0 * (abs(td.data) <= 1)  # Avoid zero division
         td_clip = td * (abs(td.data) <= 1) + td/abs(td_tmp) * (abs(td.data) > 1)
 
