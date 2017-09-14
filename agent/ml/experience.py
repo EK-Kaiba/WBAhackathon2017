@@ -51,11 +51,14 @@ class Experience:
         print('indices = %s' % indices)
 
         tmp_rewards = self.d[2].T[0].copy()
+        print('tmp_rewards = %s' % tmp_rewards)
 #        rewards = []
 #        for i in range(len(indices) - 2):
 #            rewards.append(reduce(lambda x, y: x + y, tmp_rewards[indices[i] + 1:indices[i + 1] + 1]))
         each_sum_rewards = [reduce(lambda x, y: x + y, tmp_rewards[indices[i] + 1:indices[i + 1] + 1]) for i in range(len(indices) - 2)]
+        print('each_sum_rewards = %s' % each_sum_rewards)
         each_sum_rewards = utils.softmax(each_sum_rewards)
+        print('softmaxed each_sum_rewards = %s' % each_sum_rewards)
 
         while True:
             #selected_end_index_of_indices = random.randint(1, len(indices) - 1)
