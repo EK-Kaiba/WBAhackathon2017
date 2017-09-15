@@ -92,22 +92,25 @@ class QNet:
         print('max_q_dash = %s' % max_q_dash)
         if self.use_gpu >= 0:
             #target = np.asanyarray(q.data.get(), dtype=np.float32)
-            target = np.asanyarray(map(lambda x: x.data[0], q), dtype=np.float32)
+            target = np.asanyarray(map(lambda x: x.data, q), dtype=np.float32)
         else:
             # make new array
             #target = np.array(q.data, dtype=np.float32)
-            target = np.asanyarray(map(lambda x: x.data[0], q), dtype=np.float32)
+            target = np.asanyarray(map(lambda x: x.data, q), dtype=np.float32)
         print('target = %s' % target)
 
         #for i in xrange(num_of_batch):
+        print('reward = %s' % reward)
         for i in xrange(self.replay_size):
+            print('reward[%s] = %s' % (i, reward[i],))
             if not episode_end[i][0]:
                 tmp_ = reward[i] + self.gamma * max_q_dash[i]
             else:
                 tmp_ = reward[i]
 
             action_index = self.action_to_index(action[i])
-            target[i, action_index] = tmp_
+            target[i, 0, action_index] = tmp_
+        print('')
         print('post target = %s' % target)
 
         # TD-error clipping
@@ -120,10 +123,10 @@ class QNet:
         td_tmp = [one_td.data + 1000.0 * (abs(one_td.data) <= 1) for one_td in td]
         print('td_tmp = %s' % td_tmp)
         #td_clip = td * (abs(td.data) <= 1) + td/abs(td_tmp) * (abs(td.data) > 1)
-        td_clip = [one_td * (abs(td.data) <= 1) + td/abs(one_td_tmp) * (abs(one_td.data) > 1) for one_td, one_td_tmp in zip(td, td_tmp)]
+        td_clip = [one_td * (abs(one_td.data) <= 1) + one_td/abs(one_td_tmp) * (abs(one_td.data) > 1) for one_td, one_td_tmp in zip(td, td_tmp)]
         print('td_clip = %s' % td_clip)
 
-        zero_val = np.zeros((self.replay_size, self.num_of_actions), dtype=np.float32)
+        zero_val = np.zeros((self.replay_size, 1, self.num_of_actions), dtype=np.float32)
         if self.use_gpu >= 0:
             zero_val = cuda.to_gpu(zero_val)
         zero_val = Variable(zero_val)
