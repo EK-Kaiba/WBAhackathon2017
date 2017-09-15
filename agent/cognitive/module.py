@@ -101,7 +101,7 @@ class UBComponent(brica1.Component):
         data_size = 10**5
         replay_size = 32
         hist_size = 1
-        initial_exploration = 10**3
+        initial_exploration = 300#10**3
         dim = 10240
         self.experience = Experience(use_gpu=self.use_gpu, data_size=data_size, replay_size=replay_size,
                                      hist_size=hist_size, initial_exploration=initial_exploration, dim=dim)

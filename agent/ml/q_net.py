@@ -4,6 +4,7 @@ import copy
 import numpy as np
 from chainer import cuda, FunctionSet, Variable, optimizers
 import chainer.functions as F
+import chainer.links as L
 
 from config.log import APP_KEY
 import logging
@@ -33,7 +34,8 @@ class QNet:
 
         hidden_dim = 256
         self.model = FunctionSet(
-            l4=F.Linear(self.dim*self.hist_size, hidden_dim, wscale=np.sqrt(2)),
+            #l4=F.Linear(self.dim*self.hist_size, hidden_dim, wscale=np.sqrt(2)),
+            l4=L.LSTM(self.dim*self.hist_size, hidden_dim),
             q_value=F.Linear(hidden_dim, self.num_of_actions,
                              initialW=np.zeros((self.num_of_actions, hidden_dim),
                                                dtype=np.float32))
@@ -42,6 +44,7 @@ class QNet:
             self.model.to_gpu()
 
         self.model_target = copy.deepcopy(self.model)
+        self.model_used_in_step = copy.deepcopy(self.model)
 
         self.optimizer = optimizers.RMSpropGraves(lr=0.00025, alpha=0.95, momentum=0.95, eps=0.0001)
         self.optimizer.setup(self.model.collect_parameters())
@@ -53,28 +56,51 @@ class QNet:
                   np.zeros((self.data_size, self.hist_size, self.dim), dtype=np.uint8),
                   np.zeros((self.data_size, 1), dtype=np.bool)]
 
-    def forward(self, state, action, reward, state_dash, episode_end):
-        num_of_batch = state.shape[0]
-        s = Variable(state)
-        s_dash = Variable(state_dash)
+    def reset_lstm_state_of_model(self):
+        self.model.l4.reset_state()
 
-        q = self.q_func(s)  # Get Q-value
+    def reset_lstm_state_of_target_model(self):
+        self.model_target.l4.reset_state()
+
+    def reset_lstm_state_of_model_used_in_step(self):
+        self.model_used_in_step.l4.reset_state()
+
+    def forward(self, state, action, reward, state_dash, episode_end):
+        #num_of_batch = state.shape[0]
+        s = [Variable(one_state) for one_state in state]
+        print('s = %s' % map(lambda x: x.data, s))
+        s_dash = [Variable(one_state_dash) for one_state_dash in state_dash]
+        print('s_dash = %s' % map(lambda x: x.data, s_dash))
+
+        #q = self.q_func(s)  # Get Q-value
+        q = [self.q_func(one_s) for one_s in s]
+        print('q = %s' % map(lambda x: x.data, q))
 
         # Generate Target Signals
-        tmp = self.q_func_target(s_dash)  # Q(s',*)
+        #tmp = self.q_func_target(s_dash)  # Q(s',*)
+        tmp = [self.q_func_target(one_s_dash) for one_s_dash in s_dash]
+        print('tmp = %s' % map(lambda x: x.data, tmp))
         if self.use_gpu >= 0:
-            tmp = list(map(np.max, tmp.data.get()))  # max_a Q(s',a)
+            #tmp = list(map(np.max, tmp.data.get()))  # max_a Q(s',a)
+            tmp = list(map(lambda x: np.max(x.data), tmp))
         else:
-            tmp = list(map(np.max, tmp.data))  # max_a Q(s',a)
+            #tmp = list(map(np.max, tmp.data))  # max_a Q(s',a)
+            tmp = list(map(lambda x: np.max(x.data), tmp))
+        print('post tmp = %s' % tmp)
 
         max_q_dash = np.asanyarray(tmp, dtype=np.float32)
+        print('max_q_dash = %s' % max_q_dash)
         if self.use_gpu >= 0:
-            target = np.asanyarray(q.data.get(), dtype=np.float32)
+            #target = np.asanyarray(q.data.get(), dtype=np.float32)
+            target = np.asanyarray(map(lambda x: x.data[0], q), dtype=np.float32)
         else:
             # make new array
-            target = np.array(q.data, dtype=np.float32)
+            #target = np.array(q.data, dtype=np.float32)
+            target = np.asanyarray(map(lambda x: x.data[0], q), dtype=np.float32)
+        print('target = %s' % target)
 
-        for i in xrange(num_of_batch):
+        #for i in xrange(num_of_batch):
+        for i in xrange(self.replay_size):
             if not episode_end[i][0]:
                 tmp_ = reward[i] + self.gamma * max_q_dash[i]
             else:
@@ -82,35 +108,50 @@ class QNet:
 
             action_index = self.action_to_index(action[i])
             target[i, action_index] = tmp_
+        print('post target = %s' % target)
 
         # TD-error clipping
         if self.use_gpu >= 0:
             target = cuda.to_gpu(target)
-        td = Variable(target) - q  # TD error
-        app_logger.info('TD error: {}'.format(td.data))
-        td_tmp = td.data + 1000.0 * (abs(td.data) <= 1)  # Avoid zero division
-        td_clip = td * (abs(td.data) <= 1) + td/abs(td_tmp) * (abs(td.data) > 1)
+        #td = Variable(target) - q  # TD error
+        td = [Variable(one_target) - one_q for one_target, one_q in zip(target, q)]
+        app_logger.info('TD error: {}'.format(map(lambda x: x.data, td)))
+        #td_tmp = td.data + 1000.0 * (abs(td.data) <= 1)  # Avoid zero division
+        td_tmp = [one_td.data + 1000.0 * (abs(one_td.data) <= 1) for one_td in td]
+        print('td_tmp = %s' % td_tmp)
+        #td_clip = td * (abs(td.data) <= 1) + td/abs(td_tmp) * (abs(td.data) > 1)
+        td_clip = [one_td * (abs(td.data) <= 1) + td/abs(one_td_tmp) * (abs(one_td.data) > 1) for one_td, one_td_tmp in zip(td, td_tmp)]
+        print('td_clip = %s' % td_clip)
 
         zero_val = np.zeros((self.replay_size, self.num_of_actions), dtype=np.float32)
         if self.use_gpu >= 0:
             zero_val = cuda.to_gpu(zero_val)
         zero_val = Variable(zero_val)
-        loss = F.mean_squared_error(td_clip, zero_val)
+        loss = sum([F.mean_squared_error(one_td_clip, one_zero_val) for one_td_clip, one_zero_val in zip(td_clip, zero_val)])
+        print('loss = %s' % loss)
         return loss, q
 
+    def q_func_step(self, state):
+        h4 = self.model_used_in_step.l4(state / 255.0)
+        q = self.model_used_in_step.q_value(h4)
+        print('every q = %s' % q.data)
+        return q
+
     def q_func(self, state):
-        h4 = F.relu(self.model.l4(state / 255.0))
+        #h4 = F.relu(self.model.l4(state / 255.0))
+        h4 = self.model.l4(state / 255.0)
         q = self.model.q_value(h4)
         return q
 
     def q_func_target(self, state):
-        h4 = F.relu(self.model_target.l4(state / 255.0))
+        #h4 = F.relu(self.model_target.l4(state / 255.0))
+        h4 = self.model_target.l4(state / 255.0)
         q = self.model_target.q_value(h4)
         return q
 
     def e_greedy(self, state, epsilon):
         s = Variable(state)
-        q = self.q_func(s)
+        q = self.q_func_step(s)
         q = q.data
 
         if np.random.rand() < epsilon:
@@ -124,6 +165,9 @@ class QNet:
             app_logger.info("#Greedy")
         return self.index_to_action(index_action), q
 
+    def step_model_update(self):
+        self.model_used_in_step = copy.deepcopy(self.model)
+
     def target_model_update(self):
         self.model_target = copy.deepcopy(self.model)
 
@@ -134,12 +178,17 @@ class QNet:
         return self.enable_controller.index(action)
 
     def start(self, feature):
+        #print('$$$$$$$$$$$$$$$$$$$$$q_net.start$$$$$$$$$$$$$$$$$$$$')
         self.state = np.zeros((self.hist_size, self.dim), dtype=np.uint8)
         self.state[0] = feature
 
         state_ = np.asanyarray(self.state.reshape(1, self.hist_size, self.dim), dtype=np.float32)
         if self.use_gpu >= 0:
             state_ = cuda.to_gpu(state_)
+
+        # Update model used in every step.
+        self.step_model_update()
+        self.reset_lstm_state_of_model_used_in_step()
 
         # Generate an Action e-greedy
         action, q_now = self.e_greedy(state_, self.epsilon)
@@ -149,6 +198,8 @@ class QNet:
 
     def update_model(self, replayed_experience):
         if replayed_experience[0]:
+            self.reset_lstm_state_of_model()
+            self.reset_lstm_state_of_target_model()
             self.optimizer.zero_grads()
             loss, _ = self.forward(replayed_experience[1], replayed_experience[2],
                                         replayed_experience[3], replayed_experience[4], replayed_experience[5])
