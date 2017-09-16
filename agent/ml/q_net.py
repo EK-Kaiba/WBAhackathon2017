@@ -203,7 +203,9 @@ class QNet:
         return return_action
 
     def update_model(self, replayed_experience):
-        if replayed_experience[0]:
+        is_ripple_now = replayed_experience[6]
+
+        if replayed_experience[0] and is_ripple_now:
             self.reset_lstm_state_of_model()
             self.reset_lstm_state_of_target_model()
             self.optimizer.zero_grads()
@@ -217,8 +219,9 @@ class QNet:
             app_logger.info("Model Updated")
             self.target_model_update()
 
-        self.time += 1
-        app_logger.info("step: {}".format(self.time))
+        if not is_ripple_now:
+            self.time += 1
+            app_logger.info("step: {}".format(self.time))
 
     def step(self, features):
         if self.hist_size == 4:

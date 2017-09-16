@@ -6,6 +6,7 @@ from chainer import cuda
 import utils
 
 class Experience:
+    RIPPLING_MAX_TIME = 50
     def __init__(self, use_gpu=0, data_size=10**5, replay_size=32, hist_size=1, initial_exploration=10**3, dim=10240):
 
         self.use_gpu = use_gpu
@@ -16,6 +17,10 @@ class Experience:
         self.initial_exploration = initial_exploration
         self.dim = dim
 
+        # When it is True, replay time starts.
+        self.is_ripple_now = False
+        self.rippling_time = 0
+
         self.d = [np.zeros((self.data_size, self.hist_size, self.dim), dtype=np.uint8),
                   np.zeros(self.data_size, dtype=np.uint8),
                   np.zeros((self.data_size, 1), dtype=np.int8),
@@ -23,6 +28,9 @@ class Experience:
                   np.zeros((self.data_size, 1), dtype=np.bool)]
 
     def stock(self, time, state, action, reward, state_dash, episode_end_flag):
+        if self.is_ripple_now:
+            break
+
         data_index = time % self.data_size
 
         if episode_end_flag is True:
@@ -82,7 +90,7 @@ class Experience:
 
     def replay(self, time):
         replay_start = False
-        if self.initial_exploration < time:
+        if self.initial_exploration < time and is_ripple_now:
             replay_start = True
             # Pick up replay_size number of samples from the Data
             if time < self.data_size:  # during the first sweep of the History Data
@@ -108,14 +116,27 @@ class Experience:
                 s_replay = cuda.to_gpu(s_replay)
                 s_dash_replay = cuda.to_gpu(s_dash_replay)
 
-            return replay_start, s_replay, a_replay, r_replay, s_dash_replay, episode_end_replay
+            print('rippling_time = %s' % rippling_time)
+            rippling_time += 1
+            if rippling_time >= RIPPLING_MAX_TIME:
+                print('ripple is end by time:)')
+                is_ripple_now = False
+
+            return replay_start, s_replay, a_replay, r_replay, s_dash_replay, episode_end_replay, True
 
         else:
-            return replay_start, 0, 0, 0, 0, False
+            return replay_start, 0, 0, 0, 0, False, False
 
     def end_episode(self, time, last_state, action, reward):
         self.stock(time, last_state, action, reward, last_state, True)
         replay_start, s_replay, a_replay, r_replay, s_dash_replay, episode_end_replay = \
             self.replay(time)
 
-        return replay_start, s_replay, a_replay, r_replay, s_dash_replay, episode_end_replay
+        if self.initial_exploration < time:
+            if self.rippling_time > 0:
+                self.is_ripple_now = False
+            else:
+                self.is_ripple_now = True
+            self.rippling_time = 0
+
+        return replay_start, s_replay, a_replay, r_replay, s_dash_replay, episode_end_replay, self.is_ripple_now

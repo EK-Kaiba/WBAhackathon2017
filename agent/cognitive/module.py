@@ -111,21 +111,26 @@ class UBComponent(brica1.Component):
         self.time = 0
 
     def end(self, action, reward):
-        self.time += 1
-        replay_start, s_replay, a_replay, r_replay, s_dash_replay, episode_end_replay = \
-            self.experience.end_episode(self.time, self.last_state, action, reward)
-        self.results['UB-BG-Output'] = [replay_start, s_replay, a_replay, r_replay, s_dash_replay, episode_end_replay]
+        #self.time += 1
+        replay_start, s_replay, a_replay, r_replay, s_dash_replay, episode_end_replay, is_ripple_now = \
+            self.experience.end_episode(self.time + 1, self.last_state, action, reward)
+        self.results['UB-BG-Output'] = [replay_start, s_replay, a_replay, r_replay, s_dash_replay, episode_end_replay, is_ripple_now]
+
+        if not is_ripple_now:
+            self.time += 1
 
     def fire(self):
         self.state = self.get_in_port('Isocortex#VVC-UB-Input').buffer
         action, reward = self.get_in_port('Isocortex#FL-UB-Input').buffer
         self.experience.stock(self.time, self.last_state, action, reward, self.state, False)
-        replay_start, s_replay, a_replay, r_replay, s_dash_replay, episode_end_replay = \
+        replay_start, s_replay, a_replay, r_replay, s_dash_replay, episode_end_replay, is_ripple_now = \
             self.experience.replay(self.time)
 
-        self.results['UB-BG-Output'] = [replay_start, s_replay, a_replay, r_replay, s_dash_replay, episode_end_replay]
+        self.results['UB-BG-Output'] = [replay_start, s_replay, a_replay, r_replay, s_dash_replay, episode_end_replay, is_ripple_now]
         self.last_state = self.state.copy()
-        self.time += 1
+
+        if not is_ripple_now:
+            self.time += 1
 
 
 class FLComponent(brica1.Component):

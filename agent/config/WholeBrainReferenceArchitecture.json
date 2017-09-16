@@ -680,7 +680,7 @@
   {
    "Comment": "An output port of UB for connection to BG",
    "Shape": [
-    6
+    7
    ],
    "Type": "Output",
    "Name": "UB-BG-Output",
@@ -689,7 +689,7 @@
   {
    "Comment": "An input port of BG for connection from UB",
    "Shape": [
-    6
+    7
    ],
    "Type": "Input",
    "Name": "UB-BG-Input",
