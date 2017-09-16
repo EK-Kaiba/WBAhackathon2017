@@ -29,7 +29,7 @@ class Experience:
 
     def stock(self, time, state, action, reward, state_dash, episode_end_flag):
         if self.is_ripple_now:
-            break
+            return
 
         data_index = time % self.data_size
 
@@ -90,7 +90,7 @@ class Experience:
 
     def replay(self, time):
         replay_start = False
-        if self.initial_exploration < time and is_ripple_now:
+        if self.initial_exploration < time and self.is_ripple_now:
             replay_start = True
             # Pick up replay_size number of samples from the Data
             if time < self.data_size:  # during the first sweep of the History Data
@@ -116,11 +116,11 @@ class Experience:
                 s_replay = cuda.to_gpu(s_replay)
                 s_dash_replay = cuda.to_gpu(s_dash_replay)
 
-            print('rippling_time = %s' % rippling_time)
-            rippling_time += 1
-            if rippling_time >= RIPPLING_MAX_TIME:
+            print('rippling_time = %s' % self.rippling_time)
+            self.rippling_time += 1
+            if self.rippling_time >= self.RIPPLING_MAX_TIME:
                 print('ripple is end by time:)')
-                is_ripple_now = False
+                self.is_ripple_now = False
 
             return replay_start, s_replay, a_replay, r_replay, s_dash_replay, episode_end_replay, True
 
@@ -129,7 +129,7 @@ class Experience:
 
     def end_episode(self, time, last_state, action, reward):
         self.stock(time, last_state, action, reward, last_state, True)
-        replay_start, s_replay, a_replay, r_replay, s_dash_replay, episode_end_replay = \
+        replay_start, s_replay, a_replay, r_replay, s_dash_replay, episode_end_replay, _ = \
             self.replay(time)
 
         if self.initial_exploration < time:
