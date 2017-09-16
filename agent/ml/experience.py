@@ -78,8 +78,8 @@ class Experience:
         print('softmaxed each_sum_rewards = %s' % each_sum_rewards)
 
         while True:
-            #selected_end_index_of_indices = random.randint(1, len(indices) - 1)
-            selected_end_index_of_indices = np.random.choice(len(indices) - 1, p=each_sum_rewards) + 1
+            selected_end_index_of_indices = random.randint(1, len(indices) - 1)
+            #selected_end_index_of_indices = np.random.choice(len(indices) - 1, p=each_sum_rewards) + 1
             print('selected_end_index_of_indices = %s' % selected_end_index_of_indices)
             self.replay_size = indices[selected_end_index_of_indices] - indices[selected_end_index_of_indices - 1]
             if self.replay_size > 0:
