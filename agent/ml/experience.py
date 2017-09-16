@@ -33,23 +33,30 @@ class Experience:
 
         data_index = time % self.data_size
 
-        if episode_end_flag is True:
-            self.d[0][data_index] = state
-            self.d[1][data_index] = action
-            self.d[2][data_index] = reward
-        else:
-            self.d[0][data_index] = state
-            self.d[1][data_index] = action
-            self.d[2][data_index] = reward
-            self.d[3][data_index] = state_dash
+        #if self.d[2][data_index][0] > 0.9:
+        #    print('%s !!! data_index = %s' % (self.d[2][data_index][0], data_index,))
+
         if self.d[4][data_index]:
             print('##################################')
             print('True!!! data_index = %s' % data_index)
             for d in self.d[4][:data_index + 1]:
                 print('%s' % d),
+            print('')
+            for r in self.d[2][:data_index + 1]:
+                print('%s' % r),
             print('\n##################################')
         else:
             self.d[4][data_index] = episode_end_flag
+
+            if episode_end_flag is True:
+                self.d[0][data_index] = state
+                self.d[1][data_index] = action
+                self.d[2][data_index] = reward
+            else:
+                self.d[0][data_index] = state
+                self.d[1][data_index] = action
+                self.d[2][data_index] = reward
+                self.d[3][data_index] = state_dash
 
     def retrieve_sequence_replay_index(self, length):
         print('length = %s' % length)
@@ -109,6 +116,7 @@ class Experience:
                 s_replay[i] = np.asarray(self.d[0][replay_index[i]], dtype=np.float32)
                 a_replay[i] = self.d[1][replay_index[i]]
                 r_replay[i] = self.d[2][replay_index[i]]
+                print('r_replay[%s] = %s' % (i, r_replay[i],)),
                 s_dash_replay[i] = np.array(self.d[3][replay_index[i]], dtype=np.float32)
                 episode_end_replay[i] = self.d[4][replay_index[i]]
 
@@ -116,7 +124,7 @@ class Experience:
                 s_replay = cuda.to_gpu(s_replay)
                 s_dash_replay = cuda.to_gpu(s_dash_replay)
 
-            print('rippling_time = %s' % self.rippling_time)
+            print('\nrippling_time = %s' % self.rippling_time)
             self.rippling_time += 1
             if self.rippling_time >= self.RIPPLING_MAX_TIME:
                 print('ripple is end by time:)')

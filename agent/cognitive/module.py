@@ -63,7 +63,7 @@ class BGComponent(brica1.Component):
         self.use_gpu = use_gpu
         self.epsilon = 1.0
         actions = [0, 1, 2]
-        epsilon_delta = 1.0 / 10 ** 4.4
+        epsilon_delta = 1.0 / 10 ** 3.4#1.0 / 10 ** 4.4
         min_eps = 0.1
         self.input_dim = n_input
         self.q_net = QNet(self.use_gpu, actions, self.input_dim, self.epsilon, epsilon_delta, min_eps)
@@ -101,7 +101,7 @@ class UBComponent(brica1.Component):
         data_size = 10**5
         replay_size = 32 # This variable is not constant, i.e. it is changed in every replay.
         hist_size = 1
-        initial_exploration = 300#10**3
+        initial_exploration = 500#10**3
         dim = 10240
         self.experience = Experience(use_gpu=self.use_gpu, data_size=data_size, replay_size=replay_size,
                                      hist_size=hist_size, initial_exploration=initial_exploration, dim=dim)

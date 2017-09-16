@@ -14,7 +14,7 @@ app_logger = logging.getLogger(APP_KEY)
 class QNet:
     # Hyper-Parameters
     gamma = 0.99  # Discount factor
-    initial_exploration = 300#10**3  # Initial exploratoin. original: 5x10^4
+    initial_exploration = 500#10**3  # Initial exploratoin. original: 5x10^4
     #replay_size = 32  # Replay (batch) size
     target_model_update_freq = 10**4  # Target update frequancy. original: 10^4
     data_size = 10**5  # Data size of history. original: 10^6
@@ -124,17 +124,17 @@ class QNet:
         app_logger.info('TD error: {}'.format(map(lambda x: x.data, td)))
         #td_tmp = td.data + 1000.0 * (abs(td.data) <= 1)  # Avoid zero division
         td_tmp = [one_td.data + 1000.0 * (abs(one_td.data) <= 1) for one_td in td]
-        print('td_tmp = %s' % td_tmp)
+        #print('td_tmp = %s' % td_tmp)
         #td_clip = td * (abs(td.data) <= 1) + td/abs(td_tmp) * (abs(td.data) > 1)
         td_clip = [one_td * (abs(one_td.data) <= 1) + one_td/abs(one_td_tmp) * (abs(one_td.data) > 1) for one_td, one_td_tmp in zip(td, td_tmp)]
-        print('td_clip = %s' % td_clip)
+        #print('td_clip = %s' % td_clip)
 
         zero_val = np.zeros((replay_size, 1, self.num_of_actions), dtype=np.float32)
         if self.use_gpu >= 0:
             zero_val = cuda.to_gpu(zero_val)
         zero_val = Variable(zero_val)
         loss = sum([F.mean_squared_error(one_td_clip, one_zero_val) for one_td_clip, one_zero_val in zip(td_clip, zero_val)])
-        print('loss = %s' % loss)
+        print('loss = %s' % loss.data)
         return loss, q
 
     def q_func_step(self, state):
