@@ -7,6 +7,7 @@ import utils
 
 class Experience:
     RIPPLING_MAX_TIME = 50
+    BATCH_SIZE = 10
     def __init__(self, use_gpu=0, data_size=10**5, replay_size=32, hist_size=1, initial_exploration=10**3, dim=10240):
 
         self.use_gpu = use_gpu
@@ -99,26 +100,39 @@ class Experience:
         replay_start = False
         if self.initial_exploration < time and self.is_ripple_now:
             replay_start = True
-            # Pick up replay_size number of samples from the Data
-            if time < self.data_size:  # during the first sweep of the History Data
-                #replay_index = np.random.randint(0, time, (self.replay_size, 1))
-                replay_index = self.retrieve_sequence_replay_index(time)
-            else:
-                #replay_index = np.random.randint(0, self.data_size, (self.replay_size, 1))
-                replay_index = self.retrieve_sequence_replay_index(self.data_size)
+            replay_indices = []
+            replay_max_size = 0
+            for i in xrange(self.BATCH_SIZE):
+                # Pick up replay_size number of samples from the Data
+                if time < self.data_size:  # during the first sweep of the History Data
+                    #replay_index = np.random.randint(0, time, (self.replay_size, 1))
+                    replay_indices.append(self.retrieve_sequence_replay_index(time))
+                else:
+                    #replay_index = np.random.randint(0, self.data_size, (self.replay_size, 1))
+                    replay_indices.append(self.retrieve_sequence_replay_index(self.data_size))
+                if replay_max_size < len(replay_indices[-1]):
+                    replay_max_size = len(replay_indices[-1])
 
+            '''
             s_replay = np.ndarray(shape=(self.replay_size, self.hist_size, self.dim), dtype=np.float32)
             a_replay = np.ndarray(shape=(self.replay_size, 1), dtype=np.uint8)
             r_replay = np.ndarray(shape=(self.replay_size, 1), dtype=np.float32)
             s_dash_replay = np.ndarray(shape=(self.replay_size, self.hist_size, self.dim), dtype=np.float32)
             episode_end_replay = np.ndarray(shape=(self.replay_size, 1), dtype=np.bool)
-            for i in xrange(self.replay_size):
-                s_replay[i] = np.asarray(self.d[0][replay_index[i]], dtype=np.float32)
-                a_replay[i] = self.d[1][replay_index[i]]
-                r_replay[i] = self.d[2][replay_index[i]]
-                print('r_replay[%s] = %s' % (i, r_replay[i],)),
-                s_dash_replay[i] = np.array(self.d[3][replay_index[i]], dtype=np.float32)
-                episode_end_replay[i] = self.d[4][replay_index[i]]
+            '''
+            s_replay = -np.ones(shape=(replay_max_size, self.BATCH_SIZE, self.dim), dtype=np.float32)
+            a_replay = np.ones(shape=(replay_max_size, self.BATCH_SIZE), dtype=np.uint8)
+            r_replay = np.ones(shape=(replay_max_size, self.BATCH_SIZE), dtype=np.float32)
+            s_dash_replay = -np.ones(shape=(replay_max_size, self.BATCH_SIZE, self.dim), dtype=np.float32)
+            episode_end_replay = np.ones(shape=(replay_max_size, self.BATCH_SIZE), dtype=np.bool)
+            for j in xrange(self.BATCH_SIZE):
+                for i in xrange(self.replay_size):
+                    s_replay[j, i] = np.asarray(self.d[0][replay_indices[j][i]], dtype=np.float32)
+                    a_replay[j, i] = self.d[1][replay_indices[j][i]]
+                    r_replay[j, i] = self.d[2][replay_indices[j][i]]
+                    print('r_replay[%s, %s] = %s' % (j, i, r_replay[j, i],)),
+                    s_dash_replay[j, i] = np.array(self.d[3][replay_indices[j][i]], dtype=np.float32)
+                    episode_end_replay[j, i] = self.d[4][replay_indices[j][i]]
 
             if self.use_gpu >= 0:
                 s_replay = cuda.to_gpu(s_replay)

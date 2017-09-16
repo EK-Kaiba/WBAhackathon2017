@@ -68,6 +68,7 @@ class QNet:
     def forward(self, state, action, reward, state_dash, episode_end):
         #num_of_batch = state.shape[0]
         replay_size = state.shape[0]
+        batch_size = state.shape[1]
         print('replay_size = %s' % replay_size)
 
         s = [Variable(one_state) for one_state in state]
@@ -104,15 +105,16 @@ class QNet:
 
         #for i in xrange(num_of_batch):
         print('reward = %s' % reward)
-        for i in xrange(replay_size):
-            print('reward[%s] = %s' % (i, reward[i],))
-            if not episode_end[i][0]:
-                tmp_ = reward[i] + self.gamma * max_q_dash[i]
-            else:
-                tmp_ = reward[i]
+        for j in xrange(batch_size):
+            for i in xrange(replay_size):
+                print('reward[%s] = %s' % (i, reward[i],))
+                if not episode_end[i][0]:
+                    tmp_ = reward[i] + self.gamma * max_q_dash[i]
+                else:
+                    tmp_ = reward[i]
 
-            action_index = self.action_to_index(action[i])
-            target[i, 0, action_index] = tmp_
+                action_index = self.action_to_index(action[i])
+                target[i, j, action_index] = tmp_
         print('')
         print('post target = %s' % target)
 
@@ -129,7 +131,7 @@ class QNet:
         td_clip = [one_td * (abs(one_td.data) <= 1) + one_td/abs(one_td_tmp) * (abs(one_td.data) > 1) for one_td, one_td_tmp in zip(td, td_tmp)]
         #print('td_clip = %s' % td_clip)
 
-        zero_val = np.zeros((replay_size, 1, self.num_of_actions), dtype=np.float32)
+        zero_val = np.zeros((replay_size, batch_size, self.num_of_actions), dtype=np.float32)
         if self.use_gpu >= 0:
             zero_val = cuda.to_gpu(zero_val)
         zero_val = Variable(zero_val)
@@ -146,12 +148,17 @@ class QNet:
     def q_func(self, state):
         #h4 = F.relu(self.model.l4(state / 255.0))
         h4 = self.model.l4(state / 255.0)
+        # for -1 in batching blank
+        enable = Variable(x != -1)
+        h4_next = F.where(enable, h4, state / 255.0)
         q = self.model.q_value(h4)
         return q
 
     def q_func_target(self, state):
         #h4 = F.relu(self.model_target.l4(state / 255.0))
         h4 = self.model_target.l4(state / 255.0)
+        enable = Variable(x != -1)
+        h4_next = F.where(enable, h4, state / 255.0)
         q = self.model_target.q_value(h4)
         return q
 
