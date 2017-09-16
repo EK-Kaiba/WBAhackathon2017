@@ -48,6 +48,7 @@ class Experience:
         tmp_episode_end_flags = self.d[4].T[0].copy()
         print('tmp_episode_end_flags = %s' % tmp_episode_end_flags)
         indices = [i for i in range(len(tmp_episode_end_flags)) if tmp_episode_end_flags[i]]
+        indices.insert(0, -1)
         print('indices = %s' % indices)
 
         tmp_rewards = self.d[2].T[0].copy()
@@ -55,21 +56,24 @@ class Experience:
 #        rewards = []
 #        for i in range(len(indices) - 2):
 #            rewards.append(reduce(lambda x, y: x + y, tmp_rewards[indices[i] + 1:indices[i + 1] + 1]))
-        each_sum_rewards = [reduce(lambda x, y: x + y, tmp_rewards[indices[i] + 1:indices[i + 1] + 1]) for i in range(len(indices) - 2)]
+        #each_sum_rewards = [reduce(lambda x, y: x + y, tmp_rewards[indices[i] + 1:indices[i + 1] + 1]) for i in range(len(indices) - 1)]
+        each_sum_rewards = [sum(tmp_rewards[indices[i] + 1:indices[i + 1] + 1]) for i in range(len(indices) - 1)]
         print('each_sum_rewards = %s' % each_sum_rewards)
         each_sum_rewards = utils.softmax(each_sum_rewards)
         print('softmaxed each_sum_rewards = %s' % each_sum_rewards)
 
         while True:
             #selected_end_index_of_indices = random.randint(1, len(indices) - 1)
-            selected_end_index_of_indices = np.random.choice(len(indices) - 2, p=each_sum_rewards) + 1
+            selected_end_index_of_indices = np.random.choice(len(indices) - 1, p=each_sum_rewards) + 1
             print('selected_end_index_of_indices = %s' % selected_end_index_of_indices)
-            if (indices[selected_end_index_of_indices] - self.replay_size + 1) - (indices[selected_end_index_of_indices - 1] + 1) >= 0:
+            self.replay_size = indices[selected_end_index_of_indices] - indices[selected_end_index_of_indices - 1]
+            if self.replay_size > 0:
                 print('broken')
                 break
 
-        selected_start_index = random.randint(indices[selected_end_index_of_indices - 1] + 1, indices[selected_end_index_of_indices] - self.replay_size + 1)
-        print('selected_start_index = %s' % selected_start_index)
+        #selected_start_index = random.randint(indices[selected_end_index_of_indices - 1] + 1, indices[selected_end_index_of_indices] - self.replay_size + 1)
+        selected_start_index = indices[selected_end_index_of_indices - 1] + 1
+        print('selected_start_index = %s, self.replay_size = %s' % (selected_start_index, self.replay_size,))
 
         a = np.array([range(selected_start_index, selected_start_index + self.replay_size)]).T
         print(a)

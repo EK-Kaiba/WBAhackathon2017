@@ -99,7 +99,7 @@ class UBComponent(brica1.Component):
         super(UBComponent, self).__init__()
         self.use_gpu = use_gpu
         data_size = 10**5
-        replay_size = 32
+        replay_size = 32 # This variable is not constant, i.e. it is changed in every replay.
         hist_size = 1
         initial_exploration = 300#10**3
         dim = 10240

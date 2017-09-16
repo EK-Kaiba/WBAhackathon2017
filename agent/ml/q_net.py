@@ -15,7 +15,7 @@ class QNet:
     # Hyper-Parameters
     gamma = 0.99  # Discount factor
     initial_exploration = 10**3  # Initial exploratoin. original: 5x10^4
-    replay_size = 32  # Replay (batch) size
+    #replay_size = 32  # Replay (batch) size
     target_model_update_freq = 10**4  # Target update frequancy. original: 10^4
     data_size = 10**5  # Data size of history. original: 10^6
     hist_size = 1  # original: 4
@@ -67,6 +67,9 @@ class QNet:
 
     def forward(self, state, action, reward, state_dash, episode_end):
         #num_of_batch = state.shape[0]
+        replay_size = state.shape[0]
+        print('replay_size = %s' % replay_size)
+
         s = [Variable(one_state) for one_state in state]
         print('s = %s' % map(lambda x: x.data, s))
         s_dash = [Variable(one_state_dash) for one_state_dash in state_dash]
@@ -101,7 +104,7 @@ class QNet:
 
         #for i in xrange(num_of_batch):
         print('reward = %s' % reward)
-        for i in xrange(self.replay_size):
+        for i in xrange(replay_size):
             print('reward[%s] = %s' % (i, reward[i],))
             if not episode_end[i][0]:
                 tmp_ = reward[i] + self.gamma * max_q_dash[i]
@@ -126,7 +129,7 @@ class QNet:
         td_clip = [one_td * (abs(one_td.data) <= 1) + one_td/abs(one_td_tmp) * (abs(one_td.data) > 1) for one_td, one_td_tmp in zip(td, td_tmp)]
         print('td_clip = %s' % td_clip)
 
-        zero_val = np.zeros((self.replay_size, 1, self.num_of_actions), dtype=np.float32)
+        zero_val = np.zeros((replay_size, 1, self.num_of_actions), dtype=np.float32)
         if self.use_gpu >= 0:
             zero_val = cuda.to_gpu(zero_val)
         zero_val = Variable(zero_val)
