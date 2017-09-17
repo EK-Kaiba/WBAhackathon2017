@@ -14,7 +14,7 @@ app_logger = logging.getLogger(APP_KEY)
 class QNet:
     # Hyper-Parameters
     gamma = 0.99  # Discount factor
-    initial_exploration = 500#10**3  # Initial exploratoin. original: 5x10^4
+    initial_exploration = 300#10**3  # Initial exploratoin. original: 5x10^4
     #replay_size = 32  # Replay (batch) size
     target_model_update_freq = 10**4  # Target update frequancy. original: 10^4
     data_size = 10**5  # Data size of history. original: 10^6
@@ -86,10 +86,10 @@ class QNet:
         print('tmp = %s' % map(lambda x: x.data, tmp))
         if self.use_gpu >= 0:
             #tmp = list(map(np.max, tmp.data.get()))  # max_a Q(s',a)
-            tmp = list(map(lambda x: np.max(x.data), tmp))
+            tmp = list(map(lambda x: np.max(x.data, axis=1), tmp))
         else:
             #tmp = list(map(np.max, tmp.data))  # max_a Q(s',a)
-            tmp = list(map(lambda x: np.max(x.data), tmp))
+            tmp = list(map(lambda x: np.max(x.data, axis=1), tmp))
         print('post tmp = %s' % tmp)
 
         max_q_dash = np.asanyarray(tmp, dtype=np.float32)
@@ -108,12 +108,12 @@ class QNet:
         for j in xrange(batch_size):
             for i in xrange(replay_size):
                 print('reward[%s] = %s' % (i, reward[i],))
-                if not episode_end[i][0]:
-                    tmp_ = reward[i] + self.gamma * max_q_dash[i]
+                if not episode_end[i][j]:
+                    tmp_ = reward[i][j] + self.gamma * max_q_dash[i][j]
                 else:
-                    tmp_ = reward[i]
+                    tmp_ = reward[i][j]
 
-                action_index = self.action_to_index(action[i])
+                action_index = self.action_to_index(action[i][j])
                 target[i, j, action_index] = tmp_
         print('')
         print('post target = %s' % target)
@@ -148,18 +148,24 @@ class QNet:
     def q_func(self, state):
         #h4 = F.relu(self.model.l4(state / 255.0))
         h4 = self.model.l4(state / 255.0)
-        # for -1 in batching blank
-        enable = Variable(x != -1)
-        h4_next = F.where(enable, h4, state / 255.0)
         q = self.model.q_value(h4)
+        minus1s = np.zeros(shape=q.shape, dtype=np.float32)
+        # for -1 in batching blank
+        enable = (state.data[:,0] > -0.5)[:, np.newaxis]
+        enable = Variable(np.array([[one_enable.item() for i in range(self.num_of_actions)] for one_enable in enable]))
+        q = F.where(enable, q, minus1s)
         return q
 
     def q_func_target(self, state):
         #h4 = F.relu(self.model_target.l4(state / 255.0))
         h4 = self.model_target.l4(state / 255.0)
-        enable = Variable(x != -1)
-        h4_next = F.where(enable, h4, state / 255.0)
         q = self.model_target.q_value(h4)
+        minus1s = np.zeros(shape=q.shape, dtype=np.float32)
+        enable = (state.data[:,0] > -0.5)[:, np.newaxis]
+        enable = Variable(np.array([[one_enable.item() for i in range(self.num_of_actions)] for one_enable in enable]))
+        #enable = Variable(state[:,:,0] > -0.5)
+        #enable = Variable(h4 != -1)
+        q = F.where(enable, q, minus1s)
         return q
 
     def e_greedy(self, state, epsilon):
