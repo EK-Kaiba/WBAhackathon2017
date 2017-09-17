@@ -57,11 +57,13 @@ def q_net_forward(state, action, reward, state_dash, episode_end, model, target_
     print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$THIS IS LOSS$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
     return loss, q
 
-def q_net_backward(replayed_experience, model, target_model, optimizer, enable_controller):
+def q_net_backward(queue, replayed_experience, model, target_model, optimizer, enable_controller):
     loss, _ = q_net_forward(replayed_experience[1], replayed_experience[2],
                                 replayed_experience[3], replayed_experience[4], replayed_experience[5], model, target_model, enable_controller)
     loss.backward()
     optimizer.update()
+
+    queue.put([model])
 
 def q_net_q_func(state, model, num_of_actions=3):
     h4 = model.l4(state / 255.0)
@@ -291,9 +293,9 @@ class QNet:
         return return_action
 
     def update_model(self, replayed_experience):
-        is_ripple_now = replayed_experience[6]
+        is_ripple_firing = replayed_experience[6]
 
-        if replayed_experience[0] and is_ripple_now:
+        if replayed_experience[0] and is_ripple_firing:
             self.reset_lstm_state_of_model()
             self.reset_lstm_state_of_target_model()
             self.optimizer.zero_grads()
@@ -301,7 +303,10 @@ class QNet:
             if self.process is None or self.process.exitcode is not None:
                 if self.process is not None and self.process.exitcode is not None and self.process.exitcode == 0:
                     self.model = self.queue.get()[0].deepcopy()
-                self.process = multiprocessing.Process(target=q_net_backward, args=(replayed_experience, self.model, self.model_target, self.optimizer, self.enable_controller,))
+                    print('%%%%%%%%%%%%%%%%%%%%%%%%')
+                    print('Update model!!!')
+                    print('%%%%%%%%%%%%%%%%%%%%%%%%')
+                self.process = multiprocessing.Process(target=q_net_backward, args=(self.queue, replayed_experience, self.model, self.model_target, self.optimizer, self.enable_controller,))
                 self.process.start()
             #loss, _ = self.forward(replayed_experience[1], replayed_experience[2],
             #                            replayed_experience[3], replayed_experience[4], replayed_experience[5])
@@ -313,7 +318,6 @@ class QNet:
             app_logger.info("Model Updated")
             self.target_model_update()
 
-        #if not is_ripple_now:
         self.time += 1
         app_logger.info("step: {}".format(self.time))
 
