@@ -78,12 +78,20 @@ class QNet:
         print('s_dash = %s' % map(lambda x: x.data, s_dash))
 
         #q = self.q_func(s)  # Get Q-value
-        q = [self.q_func(one_s) for one_s in s]
-        print('q = %s' % map(lambda x: x.data, q))
+        #q = [self.q_func(one_s) for one_s in s]
+        #print('q = %s' % map(lambda x: x.data, q))
 
         # Generate Target Signals
         #tmp = self.q_func_target(s_dash)  # Q(s',*)
-        tmp = [self.q_func_target(one_s_dash) for one_s_dash in s_dash]
+        #tmp = [self.q_func_target(one_s_dash) for one_s_dash in s_dash]
+
+        q = []
+        tmp = []
+        for i in range(replay_size):
+            self.model_target.l4.set_state(self.model.l4.c,self.model.l4.h)
+            q.append(self.q_func(s[i]))
+            tmp.append(self.q_func_target(s_dash[i]))
+
         print('tmp = %s' % map(lambda x: x.data, tmp))
         if self.use_gpu >= 0:
             #tmp = list(map(np.max, tmp.data.get()))  # max_a Q(s',a)
