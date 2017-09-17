@@ -136,7 +136,7 @@ class Experience:
                 r_replay[:, j] = np.append(self.d[2][replay_indices[j][0]:replay_indices[j][1]], np.zeros(replay_max_size - replay_sizes[j], dtype=np.float32))
                 s_dash_replay[:, j] = np.append(np.array(self.d[3][replay_indices[j][0]:replay_indices[j][1]])[:,0,:], -np.ones((replay_max_size - replay_sizes[j], 10240), dtype=np.float32), axis=0)
                 episode_end_replay[:, j] = np.append(self.d[4][replay_indices[j][0]:replay_indices[j][1]], np.zeros(replay_max_size - replay_sizes[j], dtype=np.bool))
-            print('s_replay = %s' % s_replay)
+            #print('s_replay = %s' % s_replay)
             '''
                 for i in xrange(replay_sizes[j]):
                     s_replay[i, j] = np.asarray(self.d[0][replay_indices[j][i]], dtype=np.float32)
