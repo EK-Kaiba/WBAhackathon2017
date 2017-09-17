@@ -7,7 +7,7 @@ import utils
 
 class Experience:
     RIPPLING_MAX_TIME = 50
-    BATCH_SIZE = 10
+    BATCH_SIZE = 100
     def __init__(self, use_gpu=0, data_size=10**5, replay_size=32, hist_size=1, initial_exploration=10**3, dim=10240):
 
         self.use_gpu = use_gpu
@@ -60,23 +60,23 @@ class Experience:
                 self.d[3][data_index] = state_dash
 
     def retrieve_sequence_replay_index(self, length):
-        print('length = %s' % length)
+        #print('length = %s' % length)
         tmp_episode_end_flags = self.d[4].T[0].copy()
-        print('tmp_episode_end_flags = %s' % tmp_episode_end_flags)
+        #print('tmp_episode_end_flags = %s' % tmp_episode_end_flags)
         indices = [i for i in range(len(tmp_episode_end_flags)) if tmp_episode_end_flags[i]]
         indices.insert(0, -1)
         print('indices = %s' % indices)
 
         tmp_rewards = self.d[2].T[0].copy()
-        print('tmp_rewards = %s' % tmp_rewards)
+        #print('tmp_rewards = %s' % tmp_rewards)
 #        rewards = []
 #        for i in range(len(indices) - 2):
 #            rewards.append(reduce(lambda x, y: x + y, tmp_rewards[indices[i] + 1:indices[i + 1] + 1]))
         #each_sum_rewards = [reduce(lambda x, y: x + y, tmp_rewards[indices[i] + 1:indices[i + 1] + 1]) for i in range(len(indices) - 1)]
         each_sum_rewards = [sum(tmp_rewards[indices[i] + 1:indices[i + 1] + 1]) for i in range(len(indices) - 1)]
-        print('each_sum_rewards = %s' % each_sum_rewards)
+        #print('each_sum_rewards = %s' % each_sum_rewards)
         each_sum_rewards = utils.softmax(each_sum_rewards)
-        print('softmaxed each_sum_rewards = %s' % each_sum_rewards)
+        #print('softmaxed each_sum_rewards = %s' % each_sum_rewards)
 
         while True:
             selected_end_index_of_indices = random.randint(1, len(indices) - 1)
@@ -84,15 +84,16 @@ class Experience:
             print('selected_end_index_of_indices = %s' % selected_end_index_of_indices)
             self.replay_size = indices[selected_end_index_of_indices] - indices[selected_end_index_of_indices - 1]
             if self.replay_size > 0:
-                print('broken')
+                #print('broken')
                 break
 
         #selected_start_index = random.randint(indices[selected_end_index_of_indices - 1] + 1, indices[selected_end_index_of_indices] - self.replay_size + 1)
         selected_start_index = indices[selected_end_index_of_indices - 1] + 1
-        print('selected_start_index = %s, self.replay_size = %s' % (selected_start_index, self.replay_size,))
+        #print('selected_start_index = %s, self.replay_size = %s' % (selected_start_index, self.replay_size,))
 
-        a = np.array([range(selected_start_index, selected_start_index + self.replay_size)]).T
-        print(a)
+        #a = np.array([range(selected_start_index, selected_start_index + self.replay_size)]).T
+        a = [selected_start_index, selected_start_index + self.replay_size] # left is inclusive, right is exclusive.
+        #print(a)
         return a
 
 
@@ -111,8 +112,9 @@ class Experience:
                 else:
                     #replay_index = np.random.randint(0, self.data_size, (self.replay_size, 1))
                     replay_indices.append(self.retrieve_sequence_replay_index(self.data_size))
-                if replay_max_size < len(replay_indices[-1]):
-                    replay_max_size = len(replay_indices[-1])
+                tmp_replay_size = replay_indices[-1][1] - replay_indices[-1][0]
+                if replay_max_size < tmp_replay_size:
+                    replay_max_size = tmp_replay_size
                 replay_sizes.append(self.replay_size)
 
             '''
@@ -126,8 +128,16 @@ class Experience:
             a_replay = np.ones(shape=(replay_max_size, self.BATCH_SIZE), dtype=np.uint8)
             r_replay = np.zeros(shape=(replay_max_size, self.BATCH_SIZE), dtype=np.float32)
             s_dash_replay = -np.ones(shape=(replay_max_size, self.BATCH_SIZE, self.dim), dtype=np.float32)
-            episode_end_replay = np.ones(shape=(replay_max_size, self.BATCH_SIZE), dtype=np.bool)
+            episode_end_replay = np.zeros(shape=(replay_max_size, self.BATCH_SIZE), dtype=np.bool)
+            #import bpdb; bpdb.set_trace()
             for j in xrange(self.BATCH_SIZE):
+                s_replay[:, j] = np.append(np.asarray(self.d[0][replay_indices[j][0]:replay_indices[j][1]])[:,0,:], -np.ones((replay_max_size - replay_sizes[j], 10240), dtype=np.float32), axis=0)
+                a_replay[:, j] = np.append(self.d[1][replay_indices[j][0]:replay_indices[j][1]], np.ones(replay_max_size - replay_sizes[j], dtype=np.uint8))
+                r_replay[:, j] = np.append(self.d[2][replay_indices[j][0]:replay_indices[j][1]], np.zeros(replay_max_size - replay_sizes[j], dtype=np.float32))
+                s_dash_replay[:, j] = np.append(np.array(self.d[3][replay_indices[j][0]:replay_indices[j][1]])[:,0,:], -np.ones((replay_max_size - replay_sizes[j], 10240), dtype=np.float32), axis=0)
+                episode_end_replay[:, j] = np.append(self.d[4][replay_indices[j][0]:replay_indices[j][1]], np.zeros(replay_max_size - replay_sizes[j], dtype=np.bool))
+            print('s_replay = %s' % s_replay)
+            '''
                 for i in xrange(replay_sizes[j]):
                     s_replay[i, j] = np.asarray(self.d[0][replay_indices[j][i]], dtype=np.float32)
                     a_replay[i, j] = self.d[1][replay_indices[j][i]]
@@ -135,16 +145,13 @@ class Experience:
                     print('r_replay[%s, %s] = %s' % (i, j, r_replay[i, j],)),
                     s_dash_replay[i, j] = np.array(self.d[3][replay_indices[j][i]], dtype=np.float32)
                     episode_end_replay[i, j] = self.d[4][replay_indices[j][i]]
+            '''
 
             if self.use_gpu >= 0:
                 s_replay = cuda.to_gpu(s_replay)
                 s_dash_replay = cuda.to_gpu(s_dash_replay)
 
-            print('\nrippling_time = %s' % self.rippling_time)
-            self.rippling_time += 1
-            if self.rippling_time >= self.RIPPLING_MAX_TIME:
-                print('ripple is end by time:)')
-                self.is_ripple_now = False
+            self.is_ripple_now = False
 
             return replay_start, s_replay, a_replay, r_replay, s_dash_replay, episode_end_replay, True
 

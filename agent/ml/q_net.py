@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import multiprocessing
 import copy
 import numpy as np
 from chainer import cuda, FunctionSet, Variable, optimizers
