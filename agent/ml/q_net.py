@@ -11,6 +11,66 @@ from config.log import APP_KEY
 import logging
 app_logger = logging.getLogger(APP_KEY)
 
+def q_net_forward(state, action, reward, state_dash, episode_end, model, target_model, enable_controller, gamma=0.99, num_of_actions=3):
+    replay_size = state.shape[0]
+    batch_size = state.shape[1]
+
+    s = [Variable(one_state) for one_state in state]
+    s_dash = [Variable(one_state_dash) for one_state_dash in state_dash]
+
+    #q = [q_net_q_func(one_s, model) for one_s in s]
+
+    # Generate Target Signals
+    #tmp = [q_net_q_func_target(one_s_dash, target_model) for one_s_dash in s_dash]
+
+    q = []
+    tmp = []
+    for i in range(replay_size):
+        q.append(q_net_q_func(s[i], model))
+        tmp.append(q_net_q_func(s_dash[i], target_model))
+        target_model.l4.set_state(model.l4.c,model.l4.h)
+
+    max_q_dash = np.asanyarray(tmp, dtype=np.float32)
+    target = np.asanyarray(map(lambda x: x.data, q), dtype=np.float32)
+
+    for j in xrange(batch_size):
+        for i in xrange(replay_size):
+            if not episode_end[i][j]:
+                tmp_ = reward[i][j] + gamma * max_q_dash[i][j]
+            else:
+                tmp_ = reward[i][j]
+
+            action_index = enable_controller.index(action[i][j])
+            target[i, j, action_index] = tmp_
+
+    # TD-error clipping
+    td = [Variable(one_target) - one_q for one_target, one_q in zip(target, q)]
+    app_logger.info('TD error: {}'.format(map(lambda x: x.data, td)))
+    td_tmp = [one_td.data + 1000.0 * (abs(one_td.data) <= 1) for one_td in td]
+    td_clip = [one_td * (abs(one_td.data) <= 1) + one_td/abs(one_td_tmp) * (abs(one_td.data) > 1) for one_td, one_td_tmp in zip(td, td_tmp)]
+
+    zero_val = np.zeros((replay_size, batch_size, num_of_actions), dtype=np.float32)
+    zero_val = Variable(zero_val)
+    loss = sum([F.mean_squared_error(one_td_clip, one_zero_val) for one_td_clip, one_zero_val in zip(td_clip, zero_val)])
+    print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$THIS IS LOSS$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+    print('loss = %s' % loss.data)
+    print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$THIS IS LOSS$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+    return loss, q
+
+def q_net_backward(replayed_experience, model, target_model, optimizer, enable_controller):
+    loss, _ = q_net_forward(replayed_experience[1], replayed_experience[2],
+                                replayed_experience[3], replayed_experience[4], replayed_experience[5], model, target_model, enable_controller)
+    loss.backward()
+    optimizer.update()
+
+def q_net_q_func(state, model, num_of_actions=3):
+    h4 = model.l4(state / 255.0)
+    q = model.q_value(h4)
+    minus1s = np.zeros(shape=q.shape, dtype=np.float32)
+    enable = (state.data[:,0] > -0.5)[:, np.newaxis]
+    enable = Variable(np.array([[one_enable.item() for i in range(num_of_actions)] for one_enable in enable]))
+    q = F.where(enable, q, minus1s)
+    return q
 
 class QNet:
     # Hyper-Parameters
@@ -30,6 +90,8 @@ class QNet:
         self.epsilon_delta = epsilon_delta
         self.min_eps = min_eps
         self.time = 0
+        self.process = None
+        self.queue = multiprocessing.Queue()
 
         app_logger.info("Initializing Q-Network...")
 
@@ -66,6 +128,7 @@ class QNet:
     def reset_lstm_state_of_model_used_in_step(self):
         self.model_used_in_step.l4.reset_state()
 
+    '''
     def forward(self, state, action, reward, state_dash, episode_end):
         #num_of_batch = state.shape[0]
         replay_size = state.shape[0]
@@ -88,9 +151,9 @@ class QNet:
         q = []
         tmp = []
         for i in range(replay_size):
-            self.model_target.l4.set_state(self.model.l4.c,self.model.l4.h)
             q.append(self.q_func(s[i]))
             tmp.append(self.q_func_target(s_dash[i]))
+            self.model_target.l4.set_state(self.model.l4.c,self.model.l4.h)
 
         print('tmp = %s' % map(lambda x: x.data, tmp))
         if self.use_gpu >= 0:
@@ -147,6 +210,7 @@ class QNet:
         loss = sum([F.mean_squared_error(one_td_clip, one_zero_val) for one_td_clip, one_zero_val in zip(td_clip, zero_val)])
         print('loss = %s' % loss.data)
         return loss, q
+    '''
 
     def q_func_step(self, state):
         h4 = self.model_used_in_step.l4(state / 255.0)
@@ -154,6 +218,7 @@ class QNet:
         print('every q = %s' % q.data)
         return q
 
+    '''
     def q_func(self, state):
         #h4 = F.relu(self.model.l4(state / 255.0))
         h4 = self.model.l4(state / 255.0)
@@ -176,6 +241,7 @@ class QNet:
         #enable = Variable(h4 != -1)
         q = F.where(enable, q, minus1s)
         return q
+    '''
 
     def e_greedy(self, state, epsilon):
         s = Variable(state)
@@ -231,19 +297,25 @@ class QNet:
             self.reset_lstm_state_of_model()
             self.reset_lstm_state_of_target_model()
             self.optimizer.zero_grads()
-            loss, _ = self.forward(replayed_experience[1], replayed_experience[2],
-                                        replayed_experience[3], replayed_experience[4], replayed_experience[5])
-            loss.backward()
-            self.optimizer.update()
+
+            if self.process is None or self.process.exitcode is not None:
+                if self.process is not None and self.process.exitcode is not None and self.process.exitcode == 0:
+                    self.model = self.queue.get()[0].deepcopy()
+                self.process = multiprocessing.Process(target=q_net_backward, args=(replayed_experience, self.model, self.model_target, self.optimizer, self.enable_controller,))
+                self.process.start()
+            #loss, _ = self.forward(replayed_experience[1], replayed_experience[2],
+            #                            replayed_experience[3], replayed_experience[4], replayed_experience[5])
+            #loss.backward()
+            #self.optimizer.update()
 
         # Target model update
         if replayed_experience[0] and np.mod(self.time, self.target_model_update_freq) == 0:
             app_logger.info("Model Updated")
             self.target_model_update()
 
-        if not is_ripple_now:
-            self.time += 1
-            app_logger.info("step: {}".format(self.time))
+        #if not is_ripple_now:
+        self.time += 1
+        app_logger.info("step: {}".format(self.time))
 
     def step(self, features):
         if self.hist_size == 4:

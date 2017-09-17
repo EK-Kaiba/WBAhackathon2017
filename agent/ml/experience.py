@@ -1,6 +1,7 @@
 # coding: utf-8
 
 import random
+import multiprocessing
 import numpy as np
 from chainer import cuda
 import utils
@@ -20,7 +21,6 @@ class Experience:
 
         # When it is True, replay time starts.
         self.is_ripple_now = False
-        self.rippling_time = 0
 
         self.d = [np.zeros((self.data_size, self.hist_size, self.dim), dtype=np.uint8),
                   np.zeros(self.data_size, dtype=np.uint8),
@@ -29,9 +29,6 @@ class Experience:
                   np.zeros((self.data_size, 1), dtype=np.bool)]
 
     def stock(self, time, state, action, reward, state_dash, episode_end_flag):
-        if self.is_ripple_now:
-            return
-
         data_index = time % self.data_size
 
         #if self.d[2][data_index][0] > 0.9:
@@ -65,7 +62,7 @@ class Experience:
         #print('tmp_episode_end_flags = %s' % tmp_episode_end_flags)
         indices = [i for i in range(len(tmp_episode_end_flags)) if tmp_episode_end_flags[i]]
         indices.insert(0, -1)
-        print('indices = %s' % indices)
+        #print('indices = %s' % indices)
 
         tmp_rewards = self.d[2].T[0].copy()
         #print('tmp_rewards = %s' % tmp_rewards)
@@ -73,15 +70,15 @@ class Experience:
 #        for i in range(len(indices) - 2):
 #            rewards.append(reduce(lambda x, y: x + y, tmp_rewards[indices[i] + 1:indices[i + 1] + 1]))
         #each_sum_rewards = [reduce(lambda x, y: x + y, tmp_rewards[indices[i] + 1:indices[i + 1] + 1]) for i in range(len(indices) - 1)]
-        each_sum_rewards = [sum(tmp_rewards[indices[i] + 1:indices[i + 1] + 1]) for i in range(len(indices) - 1)]
+        #each_sum_rewards = [sum(tmp_rewards[indices[i] + 1:indices[i + 1] + 1]) for i in range(len(indices) - 1)]
         #print('each_sum_rewards = %s' % each_sum_rewards)
-        each_sum_rewards = utils.softmax(each_sum_rewards)
+        #each_sum_rewards = utils.softmax(each_sum_rewards)
         #print('softmaxed each_sum_rewards = %s' % each_sum_rewards)
 
         while True:
             selected_end_index_of_indices = random.randint(1, len(indices) - 1)
             #selected_end_index_of_indices = np.random.choice(len(indices) - 1, p=each_sum_rewards) + 1
-            print('selected_end_index_of_indices = %s' % selected_end_index_of_indices)
+            #print('selected_end_index_of_indices = %s' % selected_end_index_of_indices)
             self.replay_size = indices[selected_end_index_of_indices] - indices[selected_end_index_of_indices - 1]
             if self.replay_size > 0:
                 #print('broken')
@@ -164,10 +161,6 @@ class Experience:
             self.replay(time)
 
         if self.initial_exploration < time:
-            if self.rippling_time > 0:
-                self.is_ripple_now = False
-            else:
-                self.is_ripple_now = True
-            self.rippling_time = 0
+            self.is_ripple_now = True
 
         return replay_start, s_replay, a_replay, r_replay, s_dash_replay, episode_end_replay, self.is_ripple_now
