@@ -36,7 +36,7 @@ class QNet:
         hidden_dim = 256
         self.model = FunctionSet(
             #l4=F.Linear(self.dim*self.hist_size, hidden_dim, wscale=np.sqrt(2)),
-            l4=L.LSTM(self.dim*self.hist_size, hidden_dim),
+            l4=L.LSTM(self.dim*self.hist_size, hidden_dim, bias_init=None, forget_bias_init=1),
             q_value=F.Linear(hidden_dim, self.num_of_actions,
                              initialW=np.zeros((self.num_of_actions, hidden_dim),
                                                dtype=np.float32))
