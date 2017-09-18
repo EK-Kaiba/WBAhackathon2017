@@ -55,11 +55,12 @@ def experience_replay(queue, d, batch_size, time, dim, data_size=10**5):
 
     print('experience_replay is ended:)')
     queue.put([s_replay, a_replay, r_replay, s_dash_replay, episode_end_replay])
+    print('experience_replay is truely ended, i.e. queue.put is also ended.')
 
 
 class Experience:
     RIPPLING_MAX_TIME = 50
-    BATCH_SIZE = 100
+    BATCH_SIZE = 1
     def __init__(self, use_gpu=0, data_size=10**5, replay_size=32, hist_size=1, initial_exploration=10**3, dim=10240):
 
         self.use_gpu = use_gpu
@@ -79,7 +80,8 @@ class Experience:
                   np.zeros((self.data_size, 1), dtype=np.bool)]
 
         self.process = None
-        self.queue = multiprocessing.Queue()
+        manager = multiprocessing.Manager()
+        self.queue = manager.Queue()
 
     def stock(self, time, state, action, reward, state_dash, episode_end_flag):
         data_index = time % self.data_size
@@ -164,7 +166,7 @@ class Experience:
                     is_ripple_firing = True
                 self.process = multiprocessing.Process(target=experience_replay, args=(self.queue, self.d, self.BATCH_SIZE, time, self.dim, self.data_size))
                 self.process.start()
-            print('self.process = %s, self.process.exitcode = %s' % (self.process, self.process.exitcode,))
+            print('Experience: self.process = %s, self.process.exitcode = %s' % (self.process, self.process.exitcode,))
 
             return replay_start, replays[0], replays[1], replays[2], replays[3], replays[4], is_ripple_firing
             '''

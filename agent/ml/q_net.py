@@ -12,11 +12,14 @@ import logging
 app_logger = logging.getLogger(APP_KEY)
 
 def q_net_forward(state, action, reward, state_dash, episode_end, model, target_model, enable_controller, gamma=0.99, num_of_actions=3):
+    print('!\nq_net_forward() is called.\n!')
     replay_size = state.shape[0]
     batch_size = state.shape[1]
 
     s = [Variable(one_state) for one_state in state]
     s_dash = [Variable(one_state_dash) for one_state_dash in state_dash]
+
+    print('s_dash = %s' % s_dash)
 
     #q = [q_net_q_func(one_s, model) for one_s in s]
 
@@ -26,12 +29,19 @@ def q_net_forward(state, action, reward, state_dash, episode_end, model, target_
     q = []
     tmp = []
     for i in range(replay_size):
+        print('i = %s' % i)
         q.append(q_net_q_func(s[i], model))
         tmp.append(q_net_q_func(s_dash[i], target_model))
         target_model.l4.set_state(model.l4.c,model.l4.h)
+        print('target_model set_state')
+
+    print('q = %s' % q)
+    print('tmp = %s' % tmp)
 
     max_q_dash = np.asanyarray(tmp, dtype=np.float32)
     target = np.asanyarray(map(lambda x: x.data, q), dtype=np.float32)
+
+    print('target = %s' % target)
 
     for j in xrange(batch_size):
         for i in xrange(replay_size):
@@ -43,9 +53,11 @@ def q_net_forward(state, action, reward, state_dash, episode_end, model, target_
             action_index = enable_controller.index(action[i][j])
             target[i, j, action_index] = tmp_
 
+    print('post target = %s' % target)
+
     # TD-error clipping
     td = [Variable(one_target) - one_q for one_target, one_q in zip(target, q)]
-    app_logger.info('TD error: {}'.format(map(lambda x: x.data, td)))
+    print('TD error: {}'.format(map(lambda x: x.data, td)))
     td_tmp = [one_td.data + 1000.0 * (abs(one_td.data) <= 1) for one_td in td]
     td_clip = [one_td * (abs(one_td.data) <= 1) + one_td/abs(one_td_tmp) * (abs(one_td.data) > 1) for one_td, one_td_tmp in zip(td, td_tmp)]
 
@@ -58,20 +70,33 @@ def q_net_forward(state, action, reward, state_dash, episode_end, model, target_
     return loss, q
 
 def q_net_backward(queue, replayed_experience, model, target_model, optimizer, enable_controller):
+    print('\nq_net_backward is started.\n')
+    model = copy.deepcopy(model)
+    target_model = copy.deepcopy(target_model)
+    print('models are copied:)')
     loss, _ = q_net_forward(replayed_experience[1], replayed_experience[2],
                                 replayed_experience[3], replayed_experience[4], replayed_experience[5], model, target_model, enable_controller)
     loss.backward()
     optimizer.update()
 
     queue.put([model])
+    print('q_net_backward is truly ended.')
 
 def q_net_q_func(state, model, num_of_actions=3):
+    print('q_net_q_func is called.')
+    print('model.l4 = %s' % model.l4)
+    print('the state = %s' % state.data)
     h4 = model.l4(state / 255.0)
+    print('post h4')
     q = model.q_value(h4)
+    print('post q')
     minus1s = np.zeros(shape=q.shape, dtype=np.float32)
+    print('post minus1s')
     enable = (state.data[:,0] > -0.5)[:, np.newaxis]
     enable = Variable(np.array([[one_enable.item() for i in range(num_of_actions)] for one_enable in enable]))
+    print('post enable')
     q = F.where(enable, q, minus1s)
+    print('post where')
     return q
 
 class QNet:
@@ -93,7 +118,8 @@ class QNet:
         self.min_eps = min_eps
         self.time = 0
         self.process = None
-        self.queue = multiprocessing.Queue()
+        manager = multiprocessing.Manager()
+        self.queue = manager.Queue()
 
         app_logger.info("Initializing Q-Network...")
 
@@ -295,10 +321,12 @@ class QNet:
     def update_model(self, replayed_experience):
         is_ripple_firing = replayed_experience[6]
 
-        if replayed_experience[0] and is_ripple_firing:
+        if replayed_experience[0]:
             self.reset_lstm_state_of_model()
             self.reset_lstm_state_of_target_model()
             self.optimizer.zero_grads()
+
+            #import bpdb; bpdb.set_trace()
 
             if self.process is None or self.process.exitcode is not None:
                 if self.process is not None and self.process.exitcode is not None and self.process.exitcode == 0:
@@ -306,8 +334,14 @@ class QNet:
                     print('%%%%%%%%%%%%%%%%%%%%%%%%')
                     print('Update model!!!')
                     print('%%%%%%%%%%%%%%%%%%%%%%%%')
-                self.process = multiprocessing.Process(target=q_net_backward, args=(self.queue, replayed_experience, self.model, self.model_target, self.optimizer, self.enable_controller,))
-                self.process.start()
+                if self.process is not None and self.process.exitcode is not None and self.process.exitcode != 0:
+                    print('Q-Net: self.process = %s, self.process.exitcode = %s' % (self.process, self.process.exitcode,))
+
+                if is_ripple_firing:
+                    self.process = multiprocessing.Process(target=q_net_backward, args=(self.queue, replayed_experience, copy.deepcopy(self.model), copy.deepcopy(self.model_target), self.optimizer, self.enable_controller,))
+                    self.process.start()
+            if self.process is not None:
+                print('Q-Net: self.process = %s, self.process.exitcode = %s' % (self.process, self.process.exitcode,))
             #loss, _ = self.forward(replayed_experience[1], replayed_experience[2],
             #                            replayed_experience[3], replayed_experience[4], replayed_experience[5])
             #loss.backward()
