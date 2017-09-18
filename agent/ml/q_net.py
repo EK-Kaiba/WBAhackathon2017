@@ -71,8 +71,8 @@ def q_net_forward(state, action, reward, state_dash, episode_end, model, target_
 
 def q_net_backward(queue, replayed_experience, model, target_model, optimizer, enable_controller):
     print('\nq_net_backward is started.\n')
-    model = copy.deepcopy(model)
-    target_model = copy.deepcopy(target_model)
+    model = copy.deepcopy(model).to_cpu()
+    target_model = copy.deepcopy(target_model).to_cpu()
     print('models are copied:)')
     loss, _ = q_net_forward(replayed_experience[1], replayed_experience[2],
                                 replayed_experience[3], replayed_experience[4], replayed_experience[5], model, target_model, enable_controller)
