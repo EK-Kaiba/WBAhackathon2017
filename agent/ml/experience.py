@@ -60,7 +60,8 @@ def experience_replay(queue, d, batch_size, time, dim, data_size=10**5):
 
 class Experience:
     RIPPLING_MAX_TIME = 50
-    BATCH_SIZE = 1
+    BATCH_SIZE = 30
+    INTERVAL_BACK = 150
     def __init__(self, use_gpu=0, data_size=10**5, replay_size=32, hist_size=1, initial_exploration=10**3, dim=10240):
 
         self.use_gpu = use_gpu
@@ -111,7 +112,6 @@ class Experience:
                 self.d[2][data_index] = reward
                 self.d[3][data_index] = state_dash
 
-    '''
     def retrieve_sequence_replay_index(self, length):
         #print('length = %s' % length)
         tmp_episode_end_flags = self.d[4].T[0].copy()
@@ -148,13 +148,13 @@ class Experience:
         a = [selected_start_index, selected_start_index + self.replay_size] # left is inclusive, right is exclusive.
         #print(a)
         return a
-    '''
 
 
     def replay(self, time):
         replay_start = False
-        if self.initial_exploration < time:
+        if self.initial_exploration < time and time % self.INTERVAL_BACK == 0:
             replay_start = True
+            '''
             replays = [0, 0, 0, 0, False]
             is_ripple_firing = False
             if self.process is None or self.process.exitcode is not None:
@@ -164,8 +164,9 @@ class Experience:
                     print('Get replays!!!')
                     print('%%%%%%%%%%%%%%%%%%%%%%%%')
                     is_ripple_firing = True
-                self.process = multiprocessing.Process(target=experience_replay, args=(self.queue, self.d, self.BATCH_SIZE, time, self.dim, self.data_size))
-                self.process.start()
+                if self.process is None or time % self.INTERVAL_BACK == 0:
+                    self.process = multiprocessing.Process(target=experience_replay, args=(self.queue, self.d, self.BATCH_SIZE, time, self.dim, self.data_size))
+                    self.process.start()
             print('Experience: self.process = %s, self.process.exitcode = %s' % (self.process, self.process.exitcode,))
 
             return replay_start, replays[0], replays[1], replays[2], replays[3], replays[4], is_ripple_firing
@@ -201,7 +202,6 @@ class Experience:
             if self.use_gpu >= 0:
                 s_replay = cuda.to_gpu(s_replay)
                 s_dash_replay = cuda.to_gpu(s_dash_replay)
-            '''
 
             return replay_start, s_replay, a_replay, r_replay, s_dash_replay, episode_end_replay, True
 

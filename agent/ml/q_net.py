@@ -117,9 +117,9 @@ class QNet:
         self.epsilon_delta = epsilon_delta
         self.min_eps = min_eps
         self.time = 0
-        self.process = None
-        manager = multiprocessing.Manager()
-        self.queue = manager.Queue()
+        #self.process = None
+        #manager = multiprocessing.Manager()
+        #self.queue = manager.Queue()
 
         app_logger.info("Initializing Q-Network...")
 
@@ -156,17 +156,16 @@ class QNet:
     def reset_lstm_state_of_model_used_in_step(self):
         self.model_used_in_step.l4.reset_state()
 
-    '''
     def forward(self, state, action, reward, state_dash, episode_end):
         #num_of_batch = state.shape[0]
         replay_size = state.shape[0]
         batch_size = state.shape[1]
-        print('replay_size = %s' % replay_size)
+        #print('replay_size = %s' % replay_size)
 
         s = [Variable(one_state) for one_state in state]
-        print('s = %s' % map(lambda x: x.data, s))
+        #print('s = %s' % map(lambda x: x.data, s))
         s_dash = [Variable(one_state_dash) for one_state_dash in state_dash]
-        print('s_dash = %s' % map(lambda x: x.data, s_dash))
+        #print('s_dash = %s' % map(lambda x: x.data, s_dash))
 
         #q = self.q_func(s)  # Get Q-value
         #q = [self.q_func(one_s) for one_s in s]
@@ -183,17 +182,17 @@ class QNet:
             tmp.append(self.q_func_target(s_dash[i]))
             self.model_target.l4.set_state(self.model.l4.c,self.model.l4.h)
 
-        print('tmp = %s' % map(lambda x: x.data, tmp))
+        #print('tmp = %s' % map(lambda x: x.data, tmp))
         if self.use_gpu >= 0:
             #tmp = list(map(np.max, tmp.data.get()))  # max_a Q(s',a)
             tmp = list(map(lambda x: np.max(x.data, axis=1), tmp))
         else:
             #tmp = list(map(np.max, tmp.data))  # max_a Q(s',a)
             tmp = list(map(lambda x: np.max(x.data, axis=1), tmp))
-        print('post tmp = %s' % tmp)
+        #print('post tmp = %s' % tmp)
 
         max_q_dash = np.asanyarray(tmp, dtype=np.float32)
-        print('max_q_dash = %s' % max_q_dash)
+        #print('max_q_dash = %s' % max_q_dash)
         if self.use_gpu >= 0:
             #target = np.asanyarray(q.data.get(), dtype=np.float32)
             target = np.asanyarray(map(lambda x: x.data, q), dtype=np.float32)
@@ -201,13 +200,13 @@ class QNet:
             # make new array
             #target = np.array(q.data, dtype=np.float32)
             target = np.asanyarray(map(lambda x: x.data, q), dtype=np.float32)
-        print('target = %s' % target)
+        #print('target = %s' % target)
 
         #for i in xrange(num_of_batch):
-        print('reward = %s' % reward)
+        #print('reward = %s' % reward)
         for j in xrange(batch_size):
             for i in xrange(replay_size):
-                print('reward[%s] = %s' % (i, reward[i],))
+                #print('reward[%s] = %s' % (i, reward[i],))
                 if not episode_end[i][j]:
                     tmp_ = reward[i][j] + self.gamma * max_q_dash[i][j]
                 else:
@@ -215,15 +214,15 @@ class QNet:
 
                 action_index = self.action_to_index(action[i][j])
                 target[i, j, action_index] = tmp_
-        print('')
-        print('post target = %s' % target)
+        #print('')
+        #print('post target = %s' % target)
 
         # TD-error clipping
         if self.use_gpu >= 0:
             target = cuda.to_gpu(target)
         #td = Variable(target) - q  # TD error
         td = [Variable(one_target) - one_q for one_target, one_q in zip(target, q)]
-        app_logger.info('TD error: {}'.format(map(lambda x: x.data, td)))
+        #app_logger.info('TD error: {}'.format(map(lambda x: x.data, td)))
         #td_tmp = td.data + 1000.0 * (abs(td.data) <= 1)  # Avoid zero division
         td_tmp = [one_td.data + 1000.0 * (abs(one_td.data) <= 1) for one_td in td]
         #print('td_tmp = %s' % td_tmp)
@@ -238,7 +237,6 @@ class QNet:
         loss = sum([F.mean_squared_error(one_td_clip, one_zero_val) for one_td_clip, one_zero_val in zip(td_clip, zero_val)])
         print('loss = %s' % loss.data)
         return loss, q
-    '''
 
     def q_func_step(self, state):
         h4 = self.model_used_in_step.l4(state / 255.0)
@@ -246,7 +244,6 @@ class QNet:
         print('every q = %s' % q.data)
         return q
 
-    '''
     def q_func(self, state):
         #h4 = F.relu(self.model.l4(state / 255.0))
         h4 = self.model.l4(state / 255.0)
@@ -269,7 +266,6 @@ class QNet:
         #enable = Variable(h4 != -1)
         q = F.where(enable, q, minus1s)
         return q
-    '''
 
     def e_greedy(self, state, epsilon):
         s = Variable(state)
@@ -321,13 +317,14 @@ class QNet:
     def update_model(self, replayed_experience):
         is_ripple_firing = replayed_experience[6]
 
-        if replayed_experience[0]:
+        if replayed_experience[0] and is_ripple_firing:
             self.reset_lstm_state_of_model()
             self.reset_lstm_state_of_target_model()
             self.optimizer.zero_grads()
 
             #import bpdb; bpdb.set_trace()
 
+            '''
             if self.process is None or self.process.exitcode is not None:
                 if self.process is not None and self.process.exitcode is not None and self.process.exitcode == 0:
                     self.model = self.queue.get()[0].deepcopy()
@@ -342,10 +339,11 @@ class QNet:
                     self.process.start()
             if self.process is not None:
                 print('Q-Net: self.process = %s, self.process.exitcode = %s' % (self.process, self.process.exitcode,))
-            #loss, _ = self.forward(replayed_experience[1], replayed_experience[2],
-            #                            replayed_experience[3], replayed_experience[4], replayed_experience[5])
-            #loss.backward()
-            #self.optimizer.update()
+            '''
+            loss, _ = self.forward(replayed_experience[1], replayed_experience[2],
+                                        replayed_experience[3], replayed_experience[4], replayed_experience[5])
+            loss.backward()
+            self.optimizer.update()
 
         # Target model update
         if replayed_experience[0] and np.mod(self.time, self.target_model_update_freq) == 0:
